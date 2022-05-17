@@ -20,7 +20,7 @@ from detect_track import detect_a
 
 from pose import pose_detection
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--machine', type=str, default='colab', help='type of machine')
     parser.add_argument('--show', type=str, default='True', help='show on stream webcam')
@@ -45,4 +45,5 @@ if __name__ == '__main__':
     #print(opt)
 
     with torch.no_grad():
-      image = detect(opt)
+      bbox, label = detect(opt)
+    return bbox, label
