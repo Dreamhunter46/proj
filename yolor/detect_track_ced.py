@@ -37,7 +37,8 @@ def detect(opt, save_img=False):
     out, source, weights, view_img, save_txt, imgsz, machine, show_webcam, deep_sort_model = \
         opt.output, opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, opt.machine, opt.show, opt.deep_sort_model
     webcam = source == '0' or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
-
+    
+    width_x, bbox_position_x, bbox_position_y, height_y = None, None, None, None
     if machine == 'colab':
         colab_webcam = True 
     else:
@@ -242,8 +243,8 @@ def detect(opt, save_img=False):
                         bbox_speed_x = (bbox_position_x - last_pos_x) / delta_time
                         bbox_speed_y = (bbox_position_y - last_pos_y) / delta_time
                         time_pos = time.time()
-                      print('Pos. x {}, Pos. y {}'.format(bbox_position_x,bbox_position_y))
-                      print('Speed x {}, speed y {}'.format(bbox_speed_x,bbox_speed_y))
+                      #print('Pos. x {}, Pos. y {}'.format(bbox_position_x,bbox_position_y))
+                      #print('Speed x {}, speed y {}'.format(bbox_speed_x,bbox_speed_y))
                         
                         
                       break
@@ -297,7 +298,7 @@ def detect(opt, save_img=False):
                 vid_cap.stream_data = drawing_bytes
               else:
                 #Print time (inference + NMS)
-                print('%f person detected %.3f FPS' % (number_of_person, 1/(t2 - t1)))
+                #print('%f person detected %.3f FPS' % (number_of_person, 1/(t2 - t1)))
                 pass
           else:
             if colab_webcam and (show_webcam == 'True'):
@@ -312,14 +313,12 @@ def detect(opt, save_img=False):
           total_fps_print.append(1/(t1_print - t0_yolo))
             
             
-    print('Done. (%.3fs)' % (time.time() - t0))
+    #print('Done. (%.3fs)' % (time.time() - t0))
     
-    m_yolo_fps = np.mean(yolo_fps)
-    m_pose_fps = np.mean(pose_fps)
-    m_ds_fps = np.mean(ds_fps)
-    m_print_fps = np.mean(print_fps)
-    print("overall fps: {:}".format(total_fps_no_print))
-    print("Mean FPS:\n YOLO FPS: {:.2f}, Pose FPS: {:.2f}, DS FPS: {:.2f}, Print FPS: {:.2f}".format(m_yolo_fps, m_pose_fps, m_ds_fps, m_print_fps))
-    
-    
-    
+    #m_yolo_fps = np.mean(yolo_fps)
+    #m_pose_fps = np.mean(pose_fps)
+    #m_ds_fps = np.mean(ds_fps)
+    #m_print_fps = np.mean(print_fps)
+    #print("overall fps: {:}".format(total_fps_no_print))
+    #print("Mean FPS:\n YOLO FPS: {:.2f}, Pose FPS: {:.2f}, DS FPS: {:.2f}, Print FPS: {:.2f}".format(m_yolo_fps, m_pose_fps, m_ds_fps, m_print_fps))
+    return [bbox_position_x, bbox_position_y,width_x,height_y], clss   
