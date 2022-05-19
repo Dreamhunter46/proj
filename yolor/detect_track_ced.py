@@ -112,7 +112,21 @@ def detect(opt, save_img=False):
     poi_detected, deep_sort_already_init, poi_index, poi_index_base = False, False, None, None
     is_poi = False
 
+    counter_to_reinit = 0
+    remove = 0
     for path, img, im0s, vid_cap in dataset:
+        if verbose:
+            print('Processing frame {}: counter_to_reinit = {}'.format(remove,counter_to_reinit))
+        
+        if counter_to_reinit > counter_reinit_thresh:
+            print('------------ RE-INIT -------------')
+            is_detection = False               
+            poi_detected, deep_sort_already_init, poi_index, poi_index_base = False, False, None, None
+            is_poi = False
+            poi_id = -1
+            counter_to_reinit = 0
+            
+        remove = remove + 1
         is_poi = False
         img = torch.from_numpy(img).to(device)
         img = img.half() if half else img.float()  # uint8 to fp16/32
@@ -153,11 +167,13 @@ def detect(opt, save_img=False):
         #print(det)
         index = 0 # To keep track of the current bbox being pose-analyzed
         if is_detection:
+          person_detected = False
           for *xyxy, conf, cls in det:
 
             if names[int(cls)] != 'person':
               continue
             
+            person_detected = True
             # POSE DETECTION #####################################################
             t0_pose = time_synchronized()
             if not poi_detected: # No one detected
@@ -181,50 +197,59 @@ def detect(opt, save_img=False):
 
             # If up, save bbox and feed it through DeepSort
             # So, only take care of bbox at "index"
-
+        
+          if not person_detected:
+                if verbose:
+                    print('No person detected in this frame: counter incremented')
+                counter_to_reinit = counter_to_reinit + 1
+                
           # Save bboxs, confidences and classes
           xywhs = xyxy2xywh(det[:, 0:4])
           confs = det[:, 4]
           clss = det[:, 5]
           
-          # print(confs)
-          # print(clss)
-          # print(xywhs)
-
+        else: 
+            # No YOLOR detection  
+            if verbose:
+                print('No YOLOR detection: counter incremented')
+            counter_to_reinit = counter_to_reinit + 1
+        #print('poi detected {}'.format(poi_detected))  
         if poi_detected and is_detection: # Person was already detected
 
         # DeepSort tracking ####################################################
           t0_ds = time_synchronized()
+          poi_in_outputs = False
           if not deep_sort_already_init:
             outputs[i] = deepsort_list[i].update(xywhs.cpu(), confs.cpu(), clss.cpu(), im0)
             if len(outputs[i]) > 0: # First time getting up to here
               deep_sort_already_init = True # Do not come again
-              #print('only once: outputs[i]: {}'.format(outputs[i]))
               poi_index = outputs[i][poi_index_yolo][4] # Retrieve DeepSort poi index
-              #print('Deepsort poi index {}'.format(poi_index))
-              #for output in outputs[i]: # Go through DeepSort detections
-              #  if output[4] == poi_index:
               bbox = det[poi_index_yolo,:4] # Bbox from yolo
               conf = det[poi_index_yolo,4]
               clss = det[poi_index_yolo,5]
               bbox_position_x = (bbox[0] + bbox[2]) / 2
               bbox_position_y = (bbox[1] + bbox[3]) / 2
-              time_pos = time.time()
+              time_pos = time.time()       
+              poi_in_outputs = True
+            else:
+              if verbose:
+                print('Deepsort no match: counter increased')
+              counter_to_reinit = counter_to_reinit + 1
+            
           else: # Already got DeepSort poi index
             outputs[i] = deepsort_list[i].update(xywhs.cpu(), confs.cpu(), clss.cpu(), im0)
-            #print('every time: outputs[i]: {}'.format(outputs[i]))
             #[(track_id, det_id),...]
             new_idxs = deepsort_list[i].tracker.get_ds_idx()
-            #print("id", new_idxs)
-            #print("out", outputs[i])
             new_idxs_ut = deepsort_list[i].tracker.get_ut_ds_idx()
+            
+            
             if len(outputs[i]) > 0:
-              # print('PoI ID %i'%outputs[i][4])
               for num, indices in enumerate(outputs[i]):
                 if names[int(indices[5])] == 'person' and indices[4] == poi_index:
                   for k in range(len(new_idxs)):
                     if new_idxs[k][0] == num:
                       is_poi = True
+                      poi_in_outputs = True
                       #print("detected")
                       poi_index_yolo = new_idxs[k][1] # Poi index in the yolo list
                       bbox = det[poi_index_yolo, :4]#output[:4] # Bbox from yolo
@@ -245,19 +270,25 @@ def detect(opt, save_img=False):
                         time_pos = time.time()
                       #print('Pos. x {}, Pos. y {}'.format(bbox_position_x,bbox_position_y))
                       #print('Speed x {}, speed y {}'.format(bbox_speed_x,bbox_speed_y))
-                        
-                        
                       break
+            if not poi_in_outputs:
+                if verbose:
+                    print('Lost track of POI: counter increased')
+                counter_to_reinit = counter_to_reinit + 1
+            else:
+                if verbose:
+                    print('POI detected: reinitialise the counter')
+                counter_to_reinit = 0
               # A voir si on garde ou non en fontion des unmatched tracks id
-              if not is_poi and False:
-                for k in range(len(new_idxs_ut)):
-                  if outputs[i][new_idxs_ut[k]][4] == poi_index:
-                    is_poi = True
+              #if not is_poi and False:
+              #  for k in range(len(new_idxs_ut)):
+              #    if outputs[i][new_idxs_ut[k]][4] == poi_index:
+              #      is_poi = True
                     
-                    bbox = outputs[i][new_idxs_ut[k]][:4] # Bbox from ds
-                    conf = outputs[i][new_idxs_ut[k]][4]
-                    clss = outputs[i][new_idxs_ut[k]][5]
-                    break
+              #      bbox = outputs[i][new_idxs_ut[k]][:4] # Bbox from ds
+              #      conf = outputs[i][new_idxs_ut[k]][4]
+              #      clss = outputs[i][new_idxs_ut[k]][5]
+              #      break
                 #uses the ds output bbox
                 #if names[int(output[5])] == 'person' and output[4] == poi_index and False:
                 #  is_poi = True
@@ -303,6 +334,12 @@ def detect(opt, save_img=False):
           else:
             if colab_webcam and (show_webcam == 'True'):
               drawing_array = np.zeros([imgsz,imgsz,4], dtype=np.uint8)
+              if counter_to_reinit > 0:
+                label = 're-init: %s' % (counter_to_reinit)
+                plot_one_box(torch.Tensor([20.0, 20.0, 30.0, 40.0]), drawing_array, label=label, color=colors[int(clss)])
+                drawing_array[:,:,0:3] = drawing_array[:,:,0:3]
+                drawing_array[:,:,3] = (drawing_array.max(axis = 2) > 0 ).astype(int) * 255 
+                 
               drawing_PIL = PIL_Image.fromarray(drawing_array, 'RGBA')
               iobuf = io.BytesIO()
               drawing_PIL.save(iobuf, format='png')
