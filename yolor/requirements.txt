@@ -28,7 +28,6 @@ easydict
 Cython
 h5py
 six
-opencv-python
 tb-nightly
 future
 yacs
