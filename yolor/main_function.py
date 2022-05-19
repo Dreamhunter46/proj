@@ -40,6 +40,7 @@ def main():
     parser.add_argument('--deep_sort_model', type=str, default='osnet_x0_25')
     parser.add_argument("--config_deepsort", type=str, default="deep_sort/configs/deep_sort_2.yaml")
     parser.add_argument("--detect_model", type=int, default=0)
+    parser.add_argument('--counter_reinit', type=int, default=20)
 
     opt = parser.parse_args()
     #print(opt)
